@@ -18,10 +18,6 @@ pub enum FrontendCommand {
         request_id: String,
         response: String,
     },
-    SetWorkingDirectory {
-        path: String,
-    },
-    BrowseWorkingDirectory,
     RunTest {
         test_name: String,
     },
@@ -34,6 +30,9 @@ pub enum BackendEvent {
         session_id: String,
     },
     TextDelta {
+        text: String,
+    },
+    ThinkingDelta {
         text: String,
     },
     ToolUseStarted {
@@ -73,9 +72,6 @@ pub enum BackendEvent {
         request_id: String,
         prompt: String,
         options: Vec<String>,
-    },
-    WorkingDirectoryChanged {
-        path: String,
     },
     TestResult {
         test_name: String,

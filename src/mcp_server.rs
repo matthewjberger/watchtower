@@ -15,6 +15,16 @@ pub enum McpCommand {
     DisplayContent { content: String, format: String },
     RequestUserInput { request_id: String, prompt: String, options: Vec<String> },
     SetStatusMessage { message: String },
+    Open3dWindow { width: u32, height: u32 },
+    Close3dWindow,
+    SpawnEntity { name: String, shape: String, position: [f32; 3], scale: [f32; 3] },
+    RemoveEntity { name: String },
+    MoveEntity { name: String, position: [f32; 3] },
+    RotateEntity { name: String, rotation: [f32; 3] },
+    ScaleEntity { name: String, scale: [f32; 3] },
+    SetCamera { focus: [f32; 3], radius: f32, yaw: f32, pitch: f32 },
+    ListEntities,
+    ClearScene,
 }
 
 #[derive(Clone)]
@@ -61,6 +71,68 @@ pub struct RequestUserInputRequest {
 pub struct SetStatusMessageRequest {
     #[schemars(description = "Status message to display in the toolbar")]
     pub message: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct Open3dWindowRequest {
+    #[schemars(description = "Width of the 3D window in pixels (default: 800)")]
+    pub width: Option<u32>,
+    #[schemars(description = "Height of the 3D window in pixels (default: 600)")]
+    pub height: Option<u32>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SpawnEntityRequest {
+    #[schemars(description = "Unique name for the entity")]
+    pub name: String,
+    #[schemars(description = "Shape primitive: cube, sphere, cylinder, cone, torus, or plane")]
+    pub shape: String,
+    #[schemars(description = "Position as [x, y, z]")]
+    pub position: [f32; 3],
+    #[schemars(description = "Scale as [x, y, z] (default: [1, 1, 1])")]
+    pub scale: Option<[f32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct RemoveEntityRequest {
+    #[schemars(description = "Name of the entity to remove")]
+    pub name: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct MoveEntityRequest {
+    #[schemars(description = "Name of the entity to move")]
+    pub name: String,
+    #[schemars(description = "New position as [x, y, z]")]
+    pub position: [f32; 3],
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct RotateEntityRequest {
+    #[schemars(description = "Name of the entity to rotate")]
+    pub name: String,
+    #[schemars(description = "Rotation in degrees as [x, y, z] euler angles")]
+    pub rotation: [f32; 3],
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ScaleEntityRequest {
+    #[schemars(description = "Name of the entity to scale")]
+    pub name: String,
+    #[schemars(description = "New scale as [x, y, z]")]
+    pub scale: [f32; 3],
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SetCameraRequest {
+    #[schemars(description = "Focus point as [x, y, z]")]
+    pub focus: [f32; 3],
+    #[schemars(description = "Distance from focus point")]
+    pub radius: f32,
+    #[schemars(description = "Yaw angle in degrees")]
+    pub yaw: f32,
+    #[schemars(description = "Pitch angle in degrees")]
+    pub pitch: f32,
 }
 
 #[derive(Clone)]
@@ -136,6 +208,80 @@ impl WatchtowerMcpServer {
             message: request.message,
         })
     }
+
+    #[tool(description = "Open a secondary 3D window with a camera and sun light. Use spawn_entity to add objects.")]
+    async fn open_3d_window(&self, Parameters(request): Parameters<Open3dWindowRequest>) -> String {
+        self.send_command_and_wait(McpCommand::Open3dWindow {
+            width: request.width.unwrap_or(800),
+            height: request.height.unwrap_or(600),
+        })
+    }
+
+    #[tool(description = "Close the 3D window and clear all entities from the scene")]
+    async fn close_3d_window(&self) -> String {
+        self.send_command_and_wait(McpCommand::Close3dWindow)
+    }
+
+    #[tool(description = "Spawn a 3D primitive entity in the scene. Shapes: cube, sphere, cylinder, cone, torus, plane")]
+    async fn spawn_entity(&self, Parameters(request): Parameters<SpawnEntityRequest>) -> String {
+        self.send_command_and_wait(McpCommand::SpawnEntity {
+            name: request.name,
+            shape: request.shape,
+            position: request.position,
+            scale: request.scale.unwrap_or([1.0, 1.0, 1.0]),
+        })
+    }
+
+    #[tool(description = "Remove a named entity from the 3D scene")]
+    async fn remove_entity(&self, Parameters(request): Parameters<RemoveEntityRequest>) -> String {
+        self.send_command_and_wait(McpCommand::RemoveEntity {
+            name: request.name,
+        })
+    }
+
+    #[tool(description = "Move a named entity to a new position")]
+    async fn move_entity(&self, Parameters(request): Parameters<MoveEntityRequest>) -> String {
+        self.send_command_and_wait(McpCommand::MoveEntity {
+            name: request.name,
+            position: request.position,
+        })
+    }
+
+    #[tool(description = "Set the rotation of a named entity using euler angles in degrees")]
+    async fn rotate_entity(&self, Parameters(request): Parameters<RotateEntityRequest>) -> String {
+        self.send_command_and_wait(McpCommand::RotateEntity {
+            name: request.name,
+            rotation: request.rotation,
+        })
+    }
+
+    #[tool(description = "Set the scale of a named entity")]
+    async fn scale_entity(&self, Parameters(request): Parameters<ScaleEntityRequest>) -> String {
+        self.send_command_and_wait(McpCommand::ScaleEntity {
+            name: request.name,
+            scale: request.scale,
+        })
+    }
+
+    #[tool(description = "Set the camera position by specifying focus point, distance (radius), yaw and pitch in degrees")]
+    async fn set_camera(&self, Parameters(request): Parameters<SetCameraRequest>) -> String {
+        self.send_command_and_wait(McpCommand::SetCamera {
+            focus: request.focus,
+            radius: request.radius,
+            yaw: request.yaw,
+            pitch: request.pitch,
+        })
+    }
+
+    #[tool(description = "List all named entities in the 3D scene with their positions")]
+    async fn list_entities(&self) -> String {
+        self.send_command_and_wait(McpCommand::ListEntities)
+    }
+
+    #[tool(description = "Remove all spawned entities from the scene (keeps camera and sun)")]
+    async fn clear_scene(&self) -> String {
+        self.send_command_and_wait(McpCommand::ClearScene)
+    }
 }
 
 #[tool_handler]
@@ -143,7 +289,7 @@ impl ServerHandler for WatchtowerMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "Watchtower MCP Server - Command the Watchtower desktop UI for Claude Code".into(),
+                "Watchtower MCP Server - Command the Watchtower desktop UI and 3D scene for Claude Code".into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()

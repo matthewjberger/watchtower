@@ -41,6 +41,8 @@ pub enum MessageRole {
 pub struct ChatMessage {
     pub role: MessageRole,
     pub content: String,
+    pub thinking: String,
+    pub thinking_duration_ms: u64,
     pub tool_uses: Vec<ToolUseBlock>,
 }
 
@@ -92,13 +94,14 @@ pub struct AppState {
     pub status: RwSignal<StatusDisplay>,
     pub messages: RwSignal<Vec<ChatMessage>>,
     pub streaming_text: RwSignal<String>,
+    pub thinking_text: RwSignal<String>,
     pub current_session_id: RwSignal<Option<String>>,
     pub active_tools: RwSignal<Vec<ToolUseBlock>>,
     pub notifications: RwSignal<Vec<(String, String)>>,
     pub pending_input_request: RwSignal<Option<InputRequest>>,
-    pub working_directory: RwSignal<String>,
     pub active_tab: RwSignal<ActiveTab>,
     pub test_results: RwSignal<Vec<TestEntry>>,
+    pub thinking_started_at: RwSignal<Option<f64>>,
 }
 
 #[derive(Clone)]
@@ -115,31 +118,43 @@ impl AppState {
             status: RwSignal::new(StatusDisplay::Disconnected),
             messages: RwSignal::new(Vec::new()),
             streaming_text: RwSignal::new(String::new()),
+            thinking_text: RwSignal::new(String::new()),
             current_session_id: RwSignal::new(None),
             active_tools: RwSignal::new(Vec::new()),
             notifications: RwSignal::new(Vec::new()),
             pending_input_request: RwSignal::new(None),
-            working_directory: RwSignal::new(String::new()),
             active_tab: RwSignal::new(ActiveTab::Chat),
             test_results: RwSignal::new(Vec::new()),
+            thinking_started_at: RwSignal::new(None),
         }
     }
 
     pub fn finalize_streaming_message(&self) {
         let text = self.streaming_text.get_untracked();
+        let thinking = self.thinking_text.get_untracked();
         let tools = self.active_tools.get_untracked();
+        let thinking_duration_ms = self.thinking_started_at.get_untracked()
+            .map(|started| {
+                let now = js_sys::Date::now();
+                (now - started) as u64
+            })
+            .unwrap_or(0);
 
-        if !text.is_empty() || !tools.is_empty() {
+        if !text.is_empty() || !tools.is_empty() || !thinking.is_empty() || thinking_duration_ms > 0 {
             self.messages.update(|messages| {
                 messages.push(ChatMessage {
                     role: MessageRole::Assistant,
                     content: text,
+                    thinking,
+                    thinking_duration_ms,
                     tool_uses: tools,
                 });
             });
         }
 
         self.streaming_text.set(String::new());
+        self.thinking_text.set(String::new());
+        self.thinking_started_at.set(None);
         self.active_tools.set(Vec::new());
     }
 }

@@ -92,11 +92,16 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
         BackendEvent::StreamingStarted { session_id } => {
             state.current_session_id.set(Some(session_id));
             state.streaming_text.set(String::new());
+            state.thinking_text.set(String::new());
             state.active_tools.set(Vec::new());
         }
 
         BackendEvent::TextDelta { text } => {
             state.streaming_text.update(|current| current.push_str(&text));
+        }
+
+        BackendEvent::ThinkingDelta { text } => {
+            state.thinking_text.update(|current| current.push_str(&text));
         }
 
         BackendEvent::ToolUseStarted { tool_name, tool_id } => {
@@ -138,12 +143,17 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
                 messages.push(ChatMessage {
                     role: MessageRole::Assistant,
                     content: format!("Error: {message}"),
+                    thinking: String::new(),
+                    thinking_duration_ms: 0,
                     tool_uses: Vec::new(),
                 });
             });
         }
 
         BackendEvent::StatusUpdate { status } => {
+            if matches!(status, watchtower_protocol::AgentStatus::Thinking) && state.thinking_started_at.get_untracked().is_none() {
+                state.thinking_started_at.set(Some(js_sys::Date::now()));
+            }
             state.status.set(StatusDisplay::from_agent_status(&status));
         }
 
@@ -163,6 +173,8 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
                 messages.push(ChatMessage {
                     role: MessageRole::Assistant,
                     content: format!("{prefix}{content}"),
+                    thinking: String::new(),
+                    thinking_duration_ms: 0,
                     tool_uses: Vec::new(),
                 });
             });
@@ -174,10 +186,6 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
                 prompt,
                 options,
             }));
-        }
-
-        BackendEvent::WorkingDirectoryChanged { path } => {
-            state.working_directory.set(path);
         }
 
         BackendEvent::TestResult { test_name, success, message, duration_ms } => {

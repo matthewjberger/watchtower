@@ -33,7 +33,6 @@ rmcp = { version = "0.2", features = ["server", "transport-sse-server", "transpo
 axum = { version = "0.8", features = ["macros"] }
 schemars = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "signal"] }
-rfd = "0.17"
 ureq = "2"
 
 [build-dependencies]

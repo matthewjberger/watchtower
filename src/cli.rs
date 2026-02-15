@@ -1,6 +1,5 @@
 use std::io::BufRead;
 use std::os::windows::process::CommandExt;
-use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -13,14 +12,12 @@ pub enum CliCommand {
         model: Option<String>,
     },
     Cancel,
-    SetWorkingDirectory {
-        path: PathBuf,
-    },
 }
 
 pub enum CliEvent {
     SessionStarted { session_id: String },
     TextDelta { text: String },
+    ThinkingDelta { text: String },
     ToolUseStarted { tool_name: String, tool_id: String },
     ToolUseInputDelta { tool_id: String, partial_json: String },
     ToolUseFinished { tool_id: String },
@@ -36,7 +33,6 @@ pub fn spawn_cli_worker(
     std::thread::spawn(move || {
         let mut current_child: Option<Child> = None;
         let mut current_session_id = String::new();
-        let mut working_directory: Option<PathBuf> = None;
 
         loop {
             match command_receiver.recv() {
@@ -71,10 +67,6 @@ pub fn spawn_cli_worker(
                         .stderr(Stdio::piped())
                         .creation_flags(CREATE_NO_WINDOW)
                         .env_remove("CLAUDECODE");
-
-                    if let Some(cwd) = &working_directory {
-                        cmd.current_dir(cwd);
-                    }
 
                     match cmd.spawn() {
                         Ok(mut child) => {
@@ -134,9 +126,6 @@ pub fn spawn_cli_worker(
                     let _ = event_sender.send(CliEvent::TurnComplete {
                         session_id: current_session_id.clone(),
                     });
-                }
-                Ok(CliCommand::SetWorkingDirectory { path }) => {
-                    working_directory = Some(path);
                 }
                 Err(_) => break,
             }
@@ -198,6 +187,13 @@ fn parse_stream_json_line(value: &serde_json::Value, session_id: &mut String) ->
                                         events.push(CliEvent::ToolUseInputDelta {
                                             tool_id: String::new(),
                                             partial_json: partial.to_string(),
+                                        });
+                                    }
+                                }
+                                "thinking_delta" => {
+                                    if let Some(text) = delta.get("thinking").and_then(|v| v.as_str()) {
+                                        events.push(CliEvent::ThinkingDelta {
+                                            text: text.to_string(),
                                         });
                                     }
                                 }

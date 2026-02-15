@@ -15,6 +15,7 @@ nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default
 ] }
 web-sys = { version = "0.3", features = ["Document", "Window", "HtmlTextAreaElement", "HtmlInputElement", "KeyboardEvent", "HtmlElement", "ScrollBehavior", "ScrollIntoViewOptions", "Event"] }
 wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 
 [dev-dependencies]
 wasm-bindgen = "0.2"
