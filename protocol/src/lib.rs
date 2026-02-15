@@ -21,6 +21,7 @@ pub enum FrontendCommand {
     RunTest {
         test_name: String,
     },
+    Assemble,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

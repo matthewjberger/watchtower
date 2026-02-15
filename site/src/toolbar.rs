@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use watchtower_protocol::FrontendCommand;
 
 use crate::state::{ActiveTab, AppState};
 
@@ -7,6 +8,10 @@ pub fn Toolbar(state: AppState) -> impl IntoView {
     let status = state.status;
     let session_id = state.current_session_id;
     let active_tab = state.active_tab;
+
+    let on_assemble = move |_| {
+        nightshade::webview::send(&FrontendCommand::Assemble);
+    };
 
     view! {
         <div class="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-[#30363d]">
@@ -52,6 +57,12 @@ pub fn Toolbar(state: AppState) -> impl IntoView {
                 </div>
             </div>
             <div class="flex items-center gap-3">
+                <button
+                    class="px-3 py-1 text-xs bg-[#238636] text-white rounded hover:bg-[#2ea043] cursor-pointer"
+                    on:click=on_assemble
+                >
+                    "Assemble"
+                </button>
                 <div class="text-xs text-[#484f58]">
                     {move || session_id.get().map(|id| {
                         if id.len() > 12 {

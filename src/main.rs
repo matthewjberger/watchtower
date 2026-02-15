@@ -46,6 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         test_result_rx,
         cli_prompt_test_running: Arc::new(AtomicBool::new(false)),
         scene: SceneState::default(),
+        assemble_counter: 0,
     })?;
 
     Ok(())
@@ -63,6 +64,7 @@ struct Watchtower {
     test_result_rx: mpsc::Receiver<BackendEvent>,
     cli_prompt_test_running: Arc<AtomicBool>,
     scene: SceneState,
+    assemble_counter: u32,
 }
 
 impl State for Watchtower {
@@ -119,6 +121,9 @@ impl State for Watchtower {
                 }
                 FrontendCommand::RunTest { test_name } => {
                     self.handle_run_test(&test_name);
+                }
+                FrontendCommand::Assemble => {
+                    self.handle_assemble(world);
                 }
             }
         }
@@ -236,6 +241,178 @@ impl Watchtower {
         *resp = Some(McpResponse::Success(message.to_string()));
     }
 
+    fn setup_scene(&mut self, world: &mut World, window_count: u32) {
+        let camera = spawn_pan_orbit_camera(
+            world,
+            nalgebra_glm::Vec3::new(0.0, 2.0, 0.0),
+            15.0,
+            0.3,
+            0.5,
+            "Scene Camera".to_string(),
+        );
+        world.resources.active_camera = Some(camera);
+
+        let sun = spawn_sun(world);
+
+        self.scene.camera_entity = Some(camera);
+        self.scene.sun_entity = Some(sun);
+        self.scene.window_count = window_count;
+
+        for window_index in 0..window_count {
+            world.resources.secondary_windows.pending_spawns.push(WindowSpawnRequest {
+                title: format!("Watchtower 3D #{}", window_index + 1),
+                width: 800,
+                height: 600,
+                egui_enabled: false,
+            });
+        }
+    }
+
+    fn spawn_named(&mut self, world: &mut World, name: &str, shape: &str, position: [f32; 3], scale: [f32; 3]) {
+        let pos = nalgebra_glm::Vec3::new(position[0], position[1], position[2]);
+        let entity = match shape {
+            "cube" => spawn_cube_at(world, pos),
+            "sphere" => spawn_sphere_at(world, pos),
+            "cylinder" => spawn_cylinder_at(world, pos),
+            "cone" => spawn_cone_at(world, pos),
+            "torus" => spawn_torus_at(world, pos),
+            "plane" => spawn_plane_at(world, pos),
+            _ => return,
+        };
+
+        if scale != [1.0, 1.0, 1.0] {
+            if let Some(transform) = world.get_local_transform_mut(entity) {
+                transform.scale = nalgebra_glm::Vec3::new(scale[0], scale[1], scale[2]);
+            }
+            world.set_local_transform_dirty(entity, LocalTransformDirty);
+        }
+
+        self.scene.entities.insert(name.to_string(), entity);
+    }
+
+    fn handle_assemble(&mut self, world: &mut World) {
+        if self.scene.is_open() {
+            self.scene.teardown(world);
+        }
+
+        let config = self.assemble_counter % 4;
+        self.assemble_counter += 1;
+
+        match config {
+            0 => self.assemble_cityscape(world),
+            1 => self.assemble_solar_system(world),
+            2 => self.assemble_garden(world),
+            _ => self.assemble_abstract(world),
+        }
+    }
+
+    fn assemble_cityscape(&mut self, world: &mut World) {
+        self.setup_scene(world, 2);
+
+        self.spawn_named(world, "ground", "plane", [0.0, 0.0, 0.0], [20.0, 1.0, 20.0]);
+
+        self.spawn_named(world, "tower_1", "cube", [-4.0, 3.0, -2.0], [2.0, 6.0, 2.0]);
+        self.spawn_named(world, "tower_2", "cube", [0.0, 2.0, -3.0], [1.5, 4.0, 1.5]);
+        self.spawn_named(world, "tower_3", "cube", [3.0, 4.0, -1.0], [1.8, 8.0, 1.8]);
+        self.spawn_named(world, "tower_4", "cube", [-2.0, 1.5, 2.0], [2.5, 3.0, 2.5]);
+        self.spawn_named(world, "tower_5", "cube", [5.0, 2.5, 3.0], [1.2, 5.0, 1.2]);
+
+        self.spawn_named(world, "dome_1", "sphere", [-4.0, 6.0, -2.0], [1.0, 1.0, 1.0]);
+        self.spawn_named(world, "dome_2", "sphere", [3.0, 8.0, -1.0], [0.9, 0.9, 0.9]);
+
+        self.spawn_named(world, "tree_1", "cone", [6.0, 1.0, -4.0], [0.8, 2.0, 0.8]);
+        self.spawn_named(world, "tree_2", "cone", [-6.0, 1.0, 4.0], [0.6, 1.5, 0.6]);
+        self.spawn_named(world, "tree_3", "cone", [2.0, 0.8, 5.0], [0.7, 1.6, 0.7]);
+    }
+
+    fn assemble_solar_system(&mut self, world: &mut World) {
+        self.setup_scene(world, 1);
+
+        if let Some(camera) = self.scene.camera_entity
+            && let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera)
+        {
+            pan_orbit.target_focus = nalgebra_glm::Vec3::new(0.0, 0.0, 0.0);
+            pan_orbit.target_radius = 25.0;
+            pan_orbit.target_yaw = 0.4;
+            pan_orbit.target_pitch = 0.6;
+        }
+
+        self.spawn_named(world, "star", "sphere", [0.0, 0.0, 0.0], [3.0, 3.0, 3.0]);
+
+        self.spawn_named(world, "planet_1", "sphere", [5.0, 0.0, 0.0], [0.5, 0.5, 0.5]);
+        self.spawn_named(world, "planet_2", "sphere", [0.0, 0.0, 8.0], [0.8, 0.8, 0.8]);
+        self.spawn_named(world, "planet_3", "sphere", [-10.0, 1.0, 2.0], [1.2, 1.2, 1.2]);
+        self.spawn_named(world, "planet_4", "sphere", [3.0, 0.0, -13.0], [1.5, 1.5, 1.5]);
+
+        self.spawn_named(world, "ring", "torus", [3.0, 0.0, -13.0], [2.5, 0.3, 2.5]);
+
+        self.spawn_named(world, "moon_1", "sphere", [5.8, 0.5, 0.5], [0.15, 0.15, 0.15]);
+        self.spawn_named(world, "moon_2", "sphere", [-10.5, 1.8, 3.0], [0.25, 0.25, 0.25]);
+    }
+
+    fn assemble_garden(&mut self, world: &mut World) {
+        self.setup_scene(world, 2);
+
+        self.spawn_named(world, "ground", "plane", [0.0, 0.0, 0.0], [15.0, 1.0, 15.0]);
+
+        self.spawn_named(world, "fountain_base", "cylinder", [0.0, 0.3, 0.0], [2.0, 0.6, 2.0]);
+        self.spawn_named(world, "fountain_ring", "torus", [0.0, 0.8, 0.0], [1.5, 0.3, 1.5]);
+        self.spawn_named(world, "fountain_jet", "cylinder", [0.0, 1.5, 0.0], [0.15, 1.5, 0.15]);
+        self.spawn_named(world, "fountain_top", "sphere", [0.0, 2.5, 0.0], [0.4, 0.4, 0.4]);
+
+        self.spawn_named(world, "tree_1", "cone", [4.0, 1.5, 3.0], [1.0, 3.0, 1.0]);
+        self.spawn_named(world, "trunk_1", "cylinder", [4.0, 0.4, 3.0], [0.25, 0.8, 0.25]);
+        self.spawn_named(world, "tree_2", "cone", [-3.0, 2.0, -4.0], [1.2, 4.0, 1.2]);
+        self.spawn_named(world, "trunk_2", "cylinder", [-3.0, 0.5, -4.0], [0.3, 1.0, 0.3]);
+        self.spawn_named(world, "tree_3", "cone", [-5.0, 1.0, 2.0], [0.8, 2.0, 0.8]);
+        self.spawn_named(world, "trunk_3", "cylinder", [-5.0, 0.3, 2.0], [0.2, 0.6, 0.2]);
+
+        self.spawn_named(world, "bush_1", "sphere", [2.0, 0.4, -2.0], [0.8, 0.8, 0.8]);
+        self.spawn_named(world, "bush_2", "sphere", [-1.0, 0.3, 5.0], [0.6, 0.6, 0.6]);
+        self.spawn_named(world, "bush_3", "sphere", [5.0, 0.35, -1.0], [0.7, 0.7, 0.7]);
+
+        self.spawn_named(world, "bench", "cube", [3.0, 0.3, -0.5], [1.5, 0.15, 0.5]);
+        self.spawn_named(world, "bench_leg_1", "cube", [2.3, 0.15, -0.5], [0.1, 0.3, 0.4]);
+        self.spawn_named(world, "bench_leg_2", "cube", [3.7, 0.15, -0.5], [0.1, 0.3, 0.4]);
+    }
+
+    fn assemble_abstract(&mut self, world: &mut World) {
+        self.setup_scene(world, 3);
+
+        if let Some(camera) = self.scene.camera_entity
+            && let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera)
+        {
+            pan_orbit.target_focus = nalgebra_glm::Vec3::new(0.0, 3.0, 0.0);
+            pan_orbit.target_radius = 20.0;
+            pan_orbit.target_yaw = 0.8;
+            pan_orbit.target_pitch = 0.4;
+        }
+
+        self.spawn_named(world, "base", "plane", [0.0, 0.0, 0.0], [12.0, 1.0, 12.0]);
+
+        self.spawn_named(world, "pillar_1", "cylinder", [-3.0, 3.0, -3.0], [0.3, 6.0, 0.3]);
+        self.spawn_named(world, "pillar_2", "cylinder", [3.0, 2.0, -3.0], [0.3, 4.0, 0.3]);
+        self.spawn_named(world, "pillar_3", "cylinder", [-3.0, 2.5, 3.0], [0.3, 5.0, 0.3]);
+        self.spawn_named(world, "pillar_4", "cylinder", [3.0, 3.5, 3.0], [0.3, 7.0, 0.3]);
+
+        self.spawn_named(world, "orbit_1", "torus", [0.0, 4.0, 0.0], [3.0, 0.2, 3.0]);
+        self.spawn_named(world, "orbit_2", "torus", [0.0, 6.0, 0.0], [2.0, 0.15, 2.0]);
+
+        self.spawn_named(world, "core", "sphere", [0.0, 5.0, 0.0], [1.5, 1.5, 1.5]);
+
+        self.spawn_named(world, "satellite_1", "sphere", [3.0, 4.0, 0.0], [0.4, 0.4, 0.4]);
+        self.spawn_named(world, "satellite_2", "sphere", [-2.0, 6.0, 1.0], [0.3, 0.3, 0.3]);
+        self.spawn_named(world, "satellite_3", "sphere", [0.0, 4.0, -2.5], [0.35, 0.35, 0.35]);
+
+        self.spawn_named(world, "arch_left", "cube", [-5.0, 2.0, 0.0], [0.5, 4.0, 0.5]);
+        self.spawn_named(world, "arch_right", "cube", [5.0, 2.0, 0.0], [0.5, 4.0, 0.5]);
+        self.spawn_named(world, "arch_top", "cube", [0.0, 4.2, 0.0], [10.5, 0.4, 0.5]);
+
+        self.spawn_named(world, "cone_1", "cone", [-6.0, 1.0, -5.0], [1.0, 2.0, 1.0]);
+        self.spawn_named(world, "cone_2", "cone", [6.0, 1.5, 5.0], [1.2, 3.0, 1.2]);
+        self.spawn_named(world, "cone_3", "cone", [0.0, 0.5, 6.0], [0.8, 1.0, 0.8]);
+    }
+
     fn handle_mcp_command(&mut self, command: McpCommand, world: &mut World) {
         match command {
             McpCommand::ShowNotification { title, body } => {
@@ -269,7 +446,7 @@ impl Watchtower {
                 self.respond_success("Status updated");
             }
             McpCommand::Open3dWindow { width, height } => {
-                if self.scene.window_open {
+                if self.scene.is_open() {
                     self.respond_success("3D window is already open");
                     return;
                 }
@@ -293,39 +470,23 @@ impl Watchtower {
 
                 let sun = spawn_sun(world);
 
-                self.scene.window_open = true;
+                self.scene.window_count = 1;
                 self.scene.camera_entity = Some(camera);
                 self.scene.sun_entity = Some(sun);
 
                 self.respond_success("3D window opened with camera and sun");
             }
             McpCommand::Close3dWindow => {
-                if !self.scene.window_open {
+                if !self.scene.is_open() {
                     self.respond_success("3D window is not open");
                     return;
                 }
 
-                for window_state in &mut world.resources.secondary_windows.states {
-                    window_state.close_requested = true;
-                }
-
-                for (_name, entity) in self.scene.entities.drain() {
-                    despawn_recursive_immediate(world, entity);
-                }
-                if let Some(camera) = self.scene.camera_entity.take() {
-                    despawn_recursive_immediate(world, camera);
-                }
-                if let Some(sun) = self.scene.sun_entity.take() {
-                    despawn_recursive_immediate(world, sun);
-                }
-
-                world.resources.active_camera = None;
-                self.scene.window_open = false;
-
+                self.scene.teardown(world);
                 self.respond_success("3D window closed");
             }
             McpCommand::SpawnEntity { name, shape, position, scale } => {
-                if !self.scene.window_open {
+                if !self.scene.is_open() {
                     self.respond_success("Error: 3D window is not open");
                     return;
                 }
@@ -334,28 +495,13 @@ impl Watchtower {
                     return;
                 }
 
-                let pos = nalgebra_glm::Vec3::new(position[0], position[1], position[2]);
-                let entity = match shape.as_str() {
-                    "cube" => spawn_cube_at(world, pos),
-                    "sphere" => spawn_sphere_at(world, pos),
-                    "cylinder" => spawn_cylinder_at(world, pos),
-                    "cone" => spawn_cone_at(world, pos),
-                    "torus" => spawn_torus_at(world, pos),
-                    "plane" => spawn_plane_at(world, pos),
-                    _ => {
-                        self.respond_success(&format!("Error: unknown shape '{shape}'. Use: cube, sphere, cylinder, cone, torus, plane"));
-                        return;
-                    }
-                };
-
-                if scale != [1.0, 1.0, 1.0] {
-                    if let Some(transform) = world.get_local_transform_mut(entity) {
-                        transform.scale = nalgebra_glm::Vec3::new(scale[0], scale[1], scale[2]);
-                    }
-                    world.set_local_transform_dirty(entity, LocalTransformDirty);
+                let valid_shapes = ["cube", "sphere", "cylinder", "cone", "torus", "plane"];
+                if !valid_shapes.contains(&shape.as_str()) {
+                    self.respond_success(&format!("Error: unknown shape '{shape}'. Use: cube, sphere, cylinder, cone, torus, plane"));
+                    return;
                 }
 
-                self.scene.entities.insert(name.clone(), entity);
+                self.spawn_named(world, &name, &shape, position, scale);
                 self.respond_success(&format!("Spawned {shape} entity '{name}'"));
             }
             McpCommand::RemoveEntity { name } => {
