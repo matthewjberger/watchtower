@@ -3,7 +3,8 @@
 mod cli;
 mod mcp_server;
 
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
 use std::time::Instant;
 
 use include_dir::{Dir, include_dir};
@@ -40,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mcp_response_queue,
         test_result_tx,
         test_result_rx,
-        cli_prompt_test_running: false,
+        cli_prompt_test_running: Arc::new(AtomicBool::new(false)),
     })?;
 
     Ok(())
@@ -56,7 +57,7 @@ struct Watchtower {
     mcp_response_queue: WatchtowerResponseQueue,
     test_result_tx: mpsc::Sender<BackendEvent>,
     test_result_rx: mpsc::Receiver<BackendEvent>,
-    cli_prompt_test_running: bool,
+    cli_prompt_test_running: Arc<AtomicBool>,
 }
 
 impl State for Watchtower {
@@ -173,8 +174,7 @@ impl State for Watchtower {
                     self.ctx.send(BackendEvent::StatusUpdate {
                         status: AgentStatus::Idle,
                     });
-                    if self.cli_prompt_test_running {
-                        self.cli_prompt_test_running = false;
+                    if self.cli_prompt_test_running.swap(false, Ordering::SeqCst) {
                         self.ctx.send(BackendEvent::TestResult {
                             test_name: "cli_prompt".to_string(),
                             success: true,
@@ -188,8 +188,7 @@ impl State for Watchtower {
                     self.ctx.send(BackendEvent::StatusUpdate {
                         status: AgentStatus::Idle,
                     });
-                    if self.cli_prompt_test_running {
-                        self.cli_prompt_test_running = false;
+                    if self.cli_prompt_test_running.swap(false, Ordering::SeqCst) {
                         self.ctx.send(BackendEvent::TestResult {
                             test_name: "cli_prompt".to_string(),
                             success: false,
@@ -377,7 +376,7 @@ impl Watchtower {
             }
 
             "cli_prompt" => {
-                self.cli_prompt_test_running = true;
+                self.cli_prompt_test_running.store(true, Ordering::SeqCst);
                 self.ctx.send(BackendEvent::StatusUpdate {
                     status: AgentStatus::Thinking,
                 });
@@ -385,6 +384,20 @@ impl Watchtower {
                     prompt: "Say hello in exactly 3 words".to_string(),
                     session_id: None,
                     model: None,
+                });
+
+                let flag = self.cli_prompt_test_running.clone();
+                let sender = self.test_result_tx.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    if flag.swap(false, Ordering::SeqCst) {
+                        let _ = sender.send(BackendEvent::TestResult {
+                            test_name: "cli_prompt".to_string(),
+                            success: false,
+                            message: "Timed out after 60s waiting for CLI response".to_string(),
+                            duration_ms: 60_000,
+                        });
+                    }
                 });
             }
 

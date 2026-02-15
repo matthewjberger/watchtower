@@ -1,7 +1,10 @@
 use std::io::BufRead;
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub enum CliCommand {
     StartQuery {
@@ -65,7 +68,9 @@ pub fn spawn_cli_worker(
                     let mut cmd = Command::new("claude");
                     cmd.args(&args)
                         .stdout(Stdio::piped())
-                        .stderr(Stdio::piped());
+                        .stderr(Stdio::piped())
+                        .creation_flags(CREATE_NO_WINDOW)
+                        .env_remove("CLAUDECODE");
 
                     if let Some(cwd) = &working_directory {
                         cmd.current_dir(cwd);
@@ -74,7 +79,13 @@ pub fn spawn_cli_worker(
                     match cmd.spawn() {
                         Ok(mut child) => {
                             let stdout = child.stdout.take().expect("stdout was piped");
+                            let stderr = child.stderr.take().expect("stderr was piped");
                             current_child = Some(child);
+
+                            std::thread::spawn(move || {
+                                let reader = std::io::BufReader::new(stderr);
+                                for _ in reader.lines() {}
+                            });
 
                             let event_sender_clone = event_sender.clone();
 
