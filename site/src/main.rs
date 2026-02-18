@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use watchtower_site::App;
+use summoner_site::App;
 
 fn main() {
     _ = console_log::init_with_level(log::Level::Debug);

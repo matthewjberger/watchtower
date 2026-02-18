@@ -4,7 +4,64 @@ use web_sys::wasm_bindgen::JsCast;
 use crate::message::MessageBubble;
 use crate::state::{AppState, ChatMessage, MessageRole, StatusDisplay};
 use crate::tool_use::ToolUseDisplay;
-use watchtower_protocol::FrontendCommand;
+use summoner_protocol::FrontendCommand;
+
+struct ExamplePrompt {
+    label: &'static str,
+    description: &'static str,
+    prompt: &'static str,
+}
+
+const EXAMPLE_PROMPTS: &[ExamplePrompt] = &[
+    ExamplePrompt {
+        label: "Breakout",
+        description: "Classic brick-breaking game with paddle, ball, and colorful blocks",
+        prompt: "Make a breakout game. Include a paddle controlled with A/D keys, a bouncing ball, and rows of colorful bricks that disappear when hit. Track the score.",
+    },
+    ExamplePrompt {
+        label: "Pong",
+        description: "Two-player pong with score tracking",
+        prompt: "Make a pong game. Player 1 uses W/S keys, player 2 uses UP/DOWN arrows. Include a ball that bounces off paddles and walls, and track scores for both players.",
+    },
+    ExamplePrompt {
+        label: "Space Shooter",
+        description: "Dodge asteroids and shoot enemies in space",
+        prompt: "Make a space shooter. The player ship moves with WASD and shoots with SPACE. Spawn falling asteroids that the player must dodge or destroy. Track score and lives.",
+    },
+    ExamplePrompt {
+        label: "Platformer",
+        description: "Side-scrolling platformer with moving platforms",
+        prompt: "Make a simple platformer. The player moves with A/D and jumps with SPACE. Include static and moving platforms, gravity, and a goal to reach at the top.",
+    },
+    ExamplePrompt {
+        label: "Snake",
+        description: "Classic snake game with growing tail and food",
+        prompt: "Make a snake game. The snake moves with arrow keys, eats food cubes that spawn randomly, and grows longer. Game ends if the snake hits itself. Track the score.",
+    },
+    ExamplePrompt {
+        label: "Tower Defense",
+        description: "Place towers to stop waves of enemies",
+        prompt: "Make a simple tower defense game. Enemies move along a path from one side to the other. The player clicks to place tower cubes that shoot at nearby enemies. Track wave number and lives.",
+    },
+];
+
+fn send_example(state: &AppState, prompt: &str) {
+    state.messages.update(|msgs| {
+        msgs.push(ChatMessage {
+            role: MessageRole::User,
+            content: prompt.to_string(),
+            thinking: String::new(),
+            thinking_duration_ms: 0,
+            tool_uses: Vec::new(),
+        });
+    });
+
+    nightshade::webview::send(&FrontendCommand::SendPrompt {
+        prompt: prompt.to_string(),
+        session_id: state.current_session_id.get_untracked(),
+        model: None,
+    });
+}
 
 #[component]
 pub fn ChatView(state: AppState) -> impl IntoView {
@@ -69,6 +126,8 @@ pub fn ChatView(state: AppState) -> impl IntoView {
         }
     };
 
+    let example_state = state.clone();
+
     view! {
         <div class="flex flex-col h-full">
             <div class="flex-1 overflow-y-auto px-4 py-4" id="chat-scroll-container">
@@ -76,9 +135,30 @@ pub fn ChatView(state: AppState) -> impl IntoView {
                     let msgs = messages.get();
                     let is_thinking = matches!(status.get(), StatusDisplay::Thinking);
                     if msgs.is_empty() && streaming_text.get().is_empty() && thinking_text.get().is_empty() && !is_thinking {
+                        let card_state = example_state.clone();
                         view! {
-                            <div class="flex items-center justify-center h-full text-[#484f58] text-sm">
-                                "Send a prompt to get started"
+                            <div class="flex flex-col items-center justify-center h-full gap-6">
+                                <div class="text-center">
+                                    <p class="text-lg text-[#c9d1d9] font-bold mb-1">"What do you want to build?"</p>
+                                    <p class="text-xs text-[#484f58]">"Pick an example or type your own prompt"</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 max-w-lg w-full px-4">
+                                    {EXAMPLE_PROMPTS.iter().map(|example| {
+                                        let prompt = example.prompt;
+                                        let click_state = card_state.clone();
+                                        view! {
+                                            <button
+                                                class="text-left p-3 bg-[#161b22] border border-[#30363d] rounded-lg hover:border-[#58a6ff] hover:bg-[#1c2129] transition-colors cursor-pointer group"
+                                                on:click=move |_| {
+                                                    send_example(&click_state, prompt);
+                                                }
+                                            >
+                                                <p class="text-sm text-[#c9d1d9] font-medium group-hover:text-[#58a6ff]">{example.label}</p>
+                                                <p class="text-xs text-[#484f58] mt-1 leading-relaxed">{example.description}</p>
+                                            </button>
+                                        }
+                                    }).collect_view()}
+                                </div>
                             </div>
                         }.into_any()
                     } else {

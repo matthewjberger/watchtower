@@ -3,17 +3,17 @@ resolver = "2"
 members = [".", "site", "protocol"]
 
 [package]
-name = "watchtower"
+name = "summoner"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
-description = "Desktop frontend for Claude Code"
+description = "AI game creation platform powered by Claude Code"
 license = "MIT OR Apache-2.0"
 edition = "2024"
 rust-version = "1.90"
 publish = false
 
 [[bin]]
-name = "watchtower"
+name = "summoner"
 path = "src/main.rs"
 
 [dependencies]
@@ -24,9 +24,11 @@ nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default
     "wgpu",
     "egui",
     "webview",
+    "scripting",
+    "scene_graph",
 ] }
 include_dir = "0.7"
-watchtower-protocol = { path = "protocol" }
+summoner-protocol = { path = "protocol" }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 rmcp = { version = "0.2", features = ["server", "transport-sse-server", "transport-streamable-http-server"] }

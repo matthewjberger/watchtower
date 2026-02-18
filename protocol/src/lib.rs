@@ -5,6 +5,13 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PlayState {
+    Stopped,
+    Playing,
+    Paused,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum FrontendCommand {
     Ready,
@@ -22,6 +29,10 @@ pub enum FrontendCommand {
         test_name: String,
     },
     Assemble,
+    PlayGame,
+    PauseGame,
+    StopGame,
+    OpenEditorWindow,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -79,6 +90,11 @@ pub enum BackendEvent {
         success: bool,
         message: String,
         duration_ms: u64,
+    },
+    GameStateChanged {
+        has_game: bool,
+        play_state: PlayState,
+        editor_window_open: bool,
     },
 }
 

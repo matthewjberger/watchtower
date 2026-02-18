@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use watchtower_protocol::FrontendCommand;
+use summoner_protocol::FrontendCommand;
 
 use crate::state::{AppState, TestStatus};
 

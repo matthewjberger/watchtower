@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use watchtower_protocol::AgentStatus;
+use summoner_protocol::{AgentStatus, PlayState};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ActiveTab {
@@ -102,6 +102,9 @@ pub struct AppState {
     pub active_tab: RwSignal<ActiveTab>,
     pub test_results: RwSignal<Vec<TestEntry>>,
     pub thinking_started_at: RwSignal<Option<f64>>,
+    pub has_game: RwSignal<bool>,
+    pub play_state: RwSignal<PlayState>,
+    pub editor_window_open: RwSignal<bool>,
 }
 
 #[derive(Clone)]
@@ -126,6 +129,9 @@ impl AppState {
             active_tab: RwSignal::new(ActiveTab::Chat),
             test_results: RwSignal::new(Vec::new()),
             thinking_started_at: RwSignal::new(None),
+            has_game: RwSignal::new(false),
+            play_state: RwSignal::new(PlayState::Stopped),
+            editor_window_open: RwSignal::new(false),
         }
     }
 

@@ -6,7 +6,7 @@ mod toolbar;
 mod tool_use;
 
 use leptos::prelude::*;
-use watchtower_protocol::{BackendEvent, ContentFormat, FrontendCommand};
+use summoner_protocol::{BackendEvent, ContentFormat, FrontendCommand};
 
 use crate::chat::ChatView;
 use crate::state::{ActiveTab, AppState, ChatMessage, InputRequest, MessageRole, StatusDisplay, TestEntry, TestStatus, ToolUseBlock};
@@ -151,7 +151,7 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
         }
 
         BackendEvent::StatusUpdate { status } => {
-            if matches!(status, watchtower_protocol::AgentStatus::Thinking) && state.thinking_started_at.get_untracked().is_none() {
+            if matches!(status, summoner_protocol::AgentStatus::Thinking) && state.thinking_started_at.get_untracked().is_none() {
                 state.thinking_started_at.set(Some(js_sys::Date::now()));
             }
             state.status.set(StatusDisplay::from_agent_status(&status));
@@ -186,6 +186,12 @@ fn handle_backend_event(state: &AppState, event: BackendEvent) {
                 prompt,
                 options,
             }));
+        }
+
+        BackendEvent::GameStateChanged { has_game, play_state, editor_window_open } => {
+            state.has_game.set(has_game);
+            state.play_state.set(play_state);
+            state.editor_window_open.set(editor_window_open);
         }
 
         BackendEvent::TestResult { test_name, success, message, duration_ms } => {

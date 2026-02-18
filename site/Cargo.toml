@@ -1,5 +1,5 @@
 [package]
-name = "watchtower-site"
+name = "summoner-site"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -9,7 +9,7 @@ leptos = { version = "0.8", features = ["csr", "nightly"] }
 console_log = "1"
 log = "0.4"
 console_error_panic_hook = "0.1"
-watchtower-protocol = { path = "../protocol" }
+summoner-protocol = { path = "../protocol" }
 nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default-features = false, features = [
     "webview",
 ] }
